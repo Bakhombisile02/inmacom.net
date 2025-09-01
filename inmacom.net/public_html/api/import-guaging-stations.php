@@ -2,9 +2,9 @@
 //connect to mysql db
 // Database connection details
 $host = "localhost";
-$username = "u550237388_inmacomadmin";
-$password = "AccessInmacom2046";
-$database = "u550237388_inmacom_db1";
+$username = "inmacom_db";
+$password = "AccessInmacom";
+$database = "inmacom_db";
 
 // Establish connection
 $con = mysqli_connect($host, $username, $password, $database);

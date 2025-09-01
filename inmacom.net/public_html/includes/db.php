@@ -2,9 +2,9 @@
 
 // Database connection details
 $host = "localhost";
-$username = "u550237388_inmacomadmin";
-$password = "AccessInmacom2046";
-$database = "u550237388_inmacom_db1";
+$username = "inmacom_db";
+$password = "AccessInmacom";
+$database = "inmacom_db";
 
 // Establish connection
 $con = mysqli_connect($host, $username, $password, $database);
@@ -16,7 +16,7 @@ if (!$con) {
     exit(); // Stop further execution
 }
 
-// If connection is successful, show a success message in a pop-up
-echo "<script>alert('Database connected successfully!');</script>";
+// Optional: Remove the success alert for cleaner output
+// echo "<script>alert('Database connected successfully!');</script>";
 
 ?>

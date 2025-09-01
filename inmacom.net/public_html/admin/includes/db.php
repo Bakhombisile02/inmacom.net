@@ -1,5 +1,4 @@
 <?php
-    //$con = mysqli_connect("localhost","root","","inmacom");
     $con = mysqli_connect("localhost","inmacom_db","AccessInmacom","inmacom_db");
     
     if (mysqli_connect_errno()){
