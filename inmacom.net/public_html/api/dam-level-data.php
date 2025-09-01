@@ -1,112 +1,146 @@
 <?php
-// Database connection details
-$host = "localhost";
-$username = "inmacom_db";
-$password = "AccessInmacom";
-$database = "inmacom_db";
+require_once '../includes/secure_init.php';
 
-// Establish connection
-$con = mysqli_connect($host, $username, $password, $database);
+// Require authentication for all operations
+requireAuth();
 
-// Check connection
-if (!$con) {
-    // If connection fails, return an error
-    echo json_encode(array("error" => "Database connection failed: " . mysqli_connect_error()));
-    exit(); // Stop further execution if connection fails
-}
-
-if (isset($_SESSION["user_id"]))
-    $user_id = $_SESSION["user_id"];
-if (isset($_POST['getdata'])) {
-
-    if ($_POST['getdata'] == 'datamanager') {
-        $sql = "SELECT user_stations.user_id, station.code, station.name, station.category, dam_levels.* 
-        FROM station 
-        INNER JOIN user_stations ON station.code = user_stations.station_id 
-        INNER JOIN dam_levels ON dam_levels.station_id = user_stations.station_id 
-        WHERE user_id = '$user_id';";
-    } else {
-        $sql = "SELECT dam_levels.*, station.name FROM `dam_levels` 
-        INNER JOIN station ON dam_levels.station_id = station.code";
-    }
-
-    if ($results = mysqli_query($con, $sql)) {
-
-        $response = array();
-        while ($row = mysqli_fetch_assoc($results)) {
-            $response[] = $row;
+try {
+    $pdo = getSecureDbConnection();
+    $user_id = $_SESSION['user_id'];
+    
+    if (isset($_POST['getdata'])) {
+        if ($_POST['getdata'] === 'datamanager') {
+            $stmt = $pdo->prepare("
+                SELECT user_stations.user_id, station.code, station.name, station.category, dam_levels.* 
+                FROM station 
+                INNER JOIN user_stations ON station.code = user_stations.station_id 
+                INNER JOIN dam_levels ON dam_levels.station_id = user_stations.station_id 
+                WHERE user_id = ?
+                ORDER BY dam_levels.date DESC
+            ");
+            $stmt->execute([$user_id]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT dam_levels.*, station.name 
+                FROM dam_levels 
+                INNER JOIN station ON dam_levels.station_id = station.code
+                ORDER BY dam_levels.date DESC
+            ");
+            $stmt->execute();
         }
-        $output = array("type" => "successful", "text" => "successully got data", "data" => $response);
-        echo json_encode($output);
-    } else {
-        die(json_encode(array("type" => "error", "text" => "Couldn't get data")));
-    }
-} else if (isset($_POST['delete'])) {
-
-    $id = mysqli_escape_string($con, $_POST['id']);
-    $sql = "DELETE FROM `dam_levels` WHERE `id`= '$id'";
-    if (mysqli_query($con, $sql)) {
-        $output = array("type" => "successful", "text" => "Successfully deleted!");
-        echo json_encode($output);
-    } else {
-        $output = array("type" => "error", "text" => "Failed to get data", "data" => mysqli_error($con));
-        echo json_encode($output);
-    }
-} else if (isset($_REQUEST['station'])) {
-
-    $station = mysqli_real_escape_string($con, $_REQUEST['station']);
-    $fsc = mysqli_real_escape_string($con, $_REQUEST['fsc']);
-    $storage = mysqli_real_escape_string($con, $_REQUEST['storage']);
-    $date = date_create(mysqli_real_escape_string($con, $_REQUEST['date_time']));
-
-    $formated_date = date_format($date, 'Y-m-d H:i:s');
-
-    $query    = "INSERT INTO `dam_levels`(`station_id`, `fsc`, `value`, `date`) 
-        VALUES ('$station','$fsc','$storage', '$formated_date')";
-
-    $result   = mysqli_query($con, $query);
-
-    if ($result) {
-        $response = array("type" => "success", "text" => "Successfully Saved");
-        echo json_encode($response);
-    } else {
-        $output = array("type" => "failed", "text" => "Failed to write to database, " . mysqli_error($link));
-        echo json_encode($output);
-    }
-} else if (isset($_POST['getrecord'])) {
-    $id = mysqli_escape_string($con, $_POST['id']);
-    $sql = "SELECT * FROM `view_dam_levels` WHERE `dam_levels_id` ='$id'";
-
-    if ($results = mysqli_query($con, $sql)) {
-
-        $response = array();
-        while ($row = mysqli_fetch_assoc($results)) {
-            $response[] = $row;
+        
+        $results = $stmt->fetchAll();
+        jsonResponse('successful', 'Successfully got data', $results);
+        
+    } else if (isset($_POST['delete'])) {
+        // Check if user has permission to delete
+        requireRole(['admin', 'data_manager']);
+        
+        $id = validateInput($_POST['id'], 'int', ['min' => 1]);
+        
+        $stmt = $pdo->prepare("DELETE FROM dam_levels WHERE id = ?");
+        if ($stmt->execute([$id])) {
+            logSecurityEvent('dam_level_deleted', ['id' => $id, 'user_id' => $user_id]);
+            jsonResponse('successful', 'Successfully deleted!');
+        } else {
+            jsonResponse('error', 'Failed to delete data');
         }
-        $output = array("type" => "successful", "text" => "successully got data", "data" => $response);
-        echo json_encode($output);
+        
+    } else if (isset($_REQUEST['station'])) {
+        // Add new dam level data
+        requireRole(['admin', 'data_manager']);
+        
+        $station = validateInput($_REQUEST['station'], 'station_code');
+        $fsc = validateInput($_REQUEST['fsc'], 'float');
+        $storage = validateInput($_REQUEST['storage'], 'float');
+        $date_input = validateInput($_REQUEST['date_time'], 'date');
+        
+        // Verify station exists and user has access (for data managers)
+        if ($_SESSION['role'] === 'data_manager') {
+            $check_stmt = $pdo->prepare("
+                SELECT 1 FROM user_stations 
+                WHERE user_id = ? AND station_id = ?
+            ");
+            $check_stmt->execute([$user_id, $station]);
+            if (!$check_stmt->fetch()) {
+                jsonResponse('failed', 'Access denied to this station');
+            }
+        }
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO dam_levels (station_id, fsc, value, date) 
+            VALUES (?, ?, ?, ?)
+        ");
+        
+        if ($stmt->execute([$station, $fsc, $storage, $date_input])) {
+            logSecurityEvent('dam_level_added', [
+                'station' => $station,
+                'value' => $storage,
+                'user_id' => $user_id
+            ]);
+            jsonResponse('success', 'Successfully Saved');
+        } else {
+            jsonResponse('failed', 'Failed to save data');
+        }
+        
+    } else if (isset($_POST['getrecord'])) {
+        $id = validateInput($_POST['id'], 'int', ['min' => 1]);
+        
+        $stmt = $pdo->prepare("
+            SELECT dam_levels.*, station.name 
+            FROM dam_levels 
+            INNER JOIN station ON dam_levels.station_id = station.code 
+            WHERE dam_levels.id = ?
+        ");
+        $stmt->execute([$id]);
+        $results = $stmt->fetchAll();
+        
+        jsonResponse('successful', 'Successfully got data', $results);
+        
+    } else if (isset($_REQUEST['updaterecord'])) {
+        // Update existing record
+        requireRole(['admin', 'data_manager']);
+        
+        $id = validateInput($_REQUEST['id'], 'int', ['min' => 1]);
+        $station = validateInput($_REQUEST['station_id'], 'station_code');
+        $fsc = validateInput($_REQUEST['fsc'], 'float');
+        $storage = validateInput($_REQUEST['storage'], 'float');
+        
+        // Verify station access for data managers
+        if ($_SESSION['role'] === 'data_manager') {
+            $check_stmt = $pdo->prepare("
+                SELECT 1 FROM user_stations 
+                WHERE user_id = ? AND station_id = ?
+            ");
+            $check_stmt->execute([$user_id, $station]);
+            if (!$check_stmt->fetch()) {
+                jsonResponse('failed', 'Access denied to this station');
+            }
+        }
+        
+        $stmt = $pdo->prepare("
+            UPDATE dam_levels 
+            SET station_id = ?, fsc = ?, value = ? 
+            WHERE id = ?
+        ");
+        
+        if ($stmt->execute([$station, $fsc, $storage, $id])) {
+            logSecurityEvent('dam_level_updated', [
+                'id' => $id,
+                'station' => $station,
+                'value' => $storage,
+                'user_id' => $user_id
+            ]);
+            jsonResponse('success', 'Successfully Saved');
+        } else {
+            jsonResponse('failed', 'Failed to update data');
+        }
     } else {
-        die(json_encode(array("type" => "error", "text" => "Couldn't get data")));
+        jsonResponse('failed', 'Invalid request');
     }
-} else if (isset($_REQUEST['updaterecord'])) {
-
-    $station = mysqli_real_escape_string($con, $_REQUEST['station_id']);
-    $fsc   = mysqli_real_escape_string($con, $_REQUEST['fsc']);
-    $storage    = mysqli_real_escape_string($con, $_REQUEST['storage']);
-    $id    = mysqli_real_escape_string($con, $_REQUEST['id']);
-
-    $query    = "UPDATE `dam_levels` 
-    SET `station_id`='$station',`fsc`='$fsc',`value`='$storage' 
-    WHERE id = '$id'";
-
-    $result   = mysqli_query($con, $query);
-
-    if ($result) {
-        $response = array("type" => "success", "text" => "Successfully Saved");
-        echo json_encode($response);
-    } else {
-        $output = array("type" => "failed", "text" => "Failed to write to database, " . mysqli_error($link));
-        echo json_encode($output);
-    }
+    
+} catch (Exception $e) {
+    error_log("Dam level API error: " . $e->getMessage());
+    logSecurityEvent('api_error', ['endpoint' => 'dam_levels', 'error' => $e->getMessage()]);
+    jsonResponse('failed', 'An error occurred while processing your request');
 }
-mysqli_close($con);
