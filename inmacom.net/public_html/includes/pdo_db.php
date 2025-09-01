@@ -2,9 +2,9 @@
 
 try {
     $connect = new PDO(
-        "mysql:host=localhost;dbname=u550237388_inmacom_db1", 
+        "mysql:host=localhost;dbname=inmacom_db", 
         "inmacomadmin", 
-        "AccessInmacom2046"
+        "AccessInmacom"
     );
 
     // Set the PDO error mode to exception
