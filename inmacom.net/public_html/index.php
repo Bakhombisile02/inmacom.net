@@ -1,6 +1,10 @@
-<?php session_start(); ?>
+<?php 
+session_start(); 
+// Include bilingual support
+require_once 'includes/language.php';
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo getCurrentLanguage(); ?>">
 
 <head>
 
@@ -44,6 +48,34 @@
   <link rel="stylesheet" href="assets/css/dashforge.css">
   <link rel="stylesheet" href="assets/css/dashforge.landing.css">
 
+  <!-- Language Switcher CSS -->
+  <style>
+    .language-switcher {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .lang-link {
+      padding: 5px 10px;
+      text-decoration: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      color: #333;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+    .lang-link:hover {
+      background-color: #f0f0f0;
+      text-decoration: none;
+      color: #333;
+    }
+    .lang-link.active {
+      background-color: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+  </style>
+
 </head>
 
 <body class="page-profile">
@@ -51,9 +83,9 @@
 
   <div class="home-slider">
     <div class="home-lead">
-      <p class="home-text">Welcome to INMACOM MIS</p>
+      <p class="home-text"><?php echo t('welcome_title'); ?></p>
 
-      <h6 class="home-headline">The Management Information System (MIS) is an online web application developed by INMACOM for the purpose of data sharing</span> between member of states.</h6>
+      <h6 class="home-headline"><?php echo t('welcome_subtitle'); ?></h6>
 
       <div class="d-flex tx-20 mg-t-40">
         <div class="img-group">
@@ -65,9 +97,8 @@
       <div class="d-flex tx-20 mg-t-40">
         <p class="tx-sans tx-uppercase tx-10 tx-medium tx-spacing-1 tx-color-03"></p>
         <p class="tx-12">
-          <span class="text-danger tx-uppercase tx-12 tx-medium">Desclaimer:</span> INMACOM is maintaining this system as a public service. However, INMACOM does not assume any legal responsibility for the accuracy or completeness of the information contained on this site. Persons using information from this site for official purposes, or other purposes,
-          for which accuracy and completeness are required, are hereby notified that they should first verify the information with the public records or other primary sources from which the information was obtained.
-          <br><span class="text-danger">By using this site, you agree to have read and accepted our Conditions of Use and Privacy Policy.</span>
+          <span class="text-danger tx-uppercase tx-12 tx-medium"><?php echo t('disclaimer'); ?>:</span> <?php echo t('disclaimer_text'); ?>
+          <br><span class="text-danger"><?php echo t('disclaimer_agreement'); ?></span>
         </p>
       </div>
 
@@ -85,15 +116,6 @@
   <script src="./lib/feather-icons/feather.min.js"></script>
   <script src="./lib/perfect-scrollbar/perfect-scrollbar.min.js"></script>
   <script src="assets/js/dashforge.js"></script>
-  <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-  <script>
-    function googleTranslateElementInit() {
-      new google.translate.TranslateElement({
-        pageLanguage: 'en',
-        includedLanguages:'en,pt',
-      }, 'google_translate_element');
-    }
-  </script>
 </body>
 
 </html>
