@@ -1,5 +1,10 @@
+<?php 
+session_start(); 
+// Include bilingual support
+require_once 'includes/language.php';
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo getCurrentLanguage(); ?>">
 
 <head>
 
@@ -33,7 +38,7 @@
   <!-- Favicon -->
   <link rel="shortcut icon" type="image/x-icon" href="./assets/img/favicon.png">
 
-  <title>IMNACOM MIS - Documents</title>
+  <title>INMACOM MIS - <?php echo t('documents'); ?></title>
 
   <!-- vendor css -->
   <link href="./lib/%40fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
@@ -43,6 +48,34 @@
   <link rel="stylesheet" href="./assets/css/dashforge.css">
   <link rel="stylesheet" href="./assets/css/dashforge.profile.css">
   <link rel="stylesheet" href="./assets/css/dashforge.filemgr.css">
+
+  <!-- Language Switcher CSS -->
+  <style>
+    .language-switcher {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .lang-link {
+      padding: 5px 10px;
+      text-decoration: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      color: #333;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+    .lang-link:hover {
+      background-color: #f0f0f0;
+      text-decoration: none;
+      color: #333;
+    }
+    .lang-link.active {
+      background-color: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+  </style>
 </head>
 
 <body class="page-profile">
