@@ -75,6 +75,8 @@
                 <thead>
                   <tr class="tx-uppercase tx-10 tx-spacing-1 tx-semibold tx-color-03">
                     <th>Dam Name</th>
+                    <th>Last Updated</th>
+                    <th>Level (%)</th>
                   </tr>
                 </thead>
                 <tbody id="stations"></tbody>
@@ -144,6 +146,21 @@
         </div><!-- col -->
 
       </div><!-- row -->
+      
+      <!-- Map Row -->
+      <div class="row row-xs mg-t-20">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mg-b-0">Dam Locations Map</h6>
+            </div>
+            <div class="card-body pd-10">
+              <div id="leaflet2" class="ht-400"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
     </div>
   </div>
 
@@ -158,7 +175,6 @@
   <script src="./lib/jquery.flot/jquery.flot.js"></script>
   <script src="./lib/jquery.flot/jquery.flot.crosshair.js"></script>
   <script src="./lib/jquery.flot/jquery.flot.time.js"></script>
-  <script type="text/javascript" src="/js/flot/jquery.flot.axislabels.js"></script>
   <script src="./assets/js/chart.flot.sampledata.js"></script>
   <script src="./assets/js/chart.flot.js"></script>
   <script src="./assets/js/dashforge.js"></script>
@@ -237,16 +253,42 @@
         id: 'mapbox.streets'
       }).addTo(mymap2);
 
-      var subbasin = L.geoJSON(subbasins, {
-        onEachFeature: function(feature, layer) {
-          layer.bindPopup('<b>This is </b>' + feature.properties.Basin + ' Basin')
-        },
-        style: {
-          fillColor: 'tan',
-          fillOpacity: 1,
-          color: 'gray'
-        }
-      }).addTo(mymap2);
+      var subbasin;
+      if (typeof subbasins !== 'undefined') {
+        subbasin = L.geoJSON(subbasins, {
+          onEachFeature: function(feature, layer) {
+            layer.bindPopup('<b>This is </b>' + feature.properties.Basin + ' Basin')
+          },
+          style: {
+            fillColor: 'tan',
+            fillOpacity: 1,
+            color: 'gray'
+          }
+        }).addTo(mymap2);
+      } else if (typeof maputo !== 'undefined' && typeof incomati !== 'undefined') {
+        // Use maputo and incomati if subbasins is not available
+        var maputoLayer = L.geoJSON(maputo, {
+          onEachFeature: function(feature, layer) {
+            layer.bindPopup('<b>This is </b>Maputo Basin')
+          },
+          style: {
+            fillColor: 'transparent',
+            fillOpacity: 0.3,
+            color: 'rgb(210,109,84)'
+          }
+        }).addTo(mymap2);
+        
+        var incomatiLayer = L.geoJSON(incomati, {
+          onEachFeature: function(feature, layer) {
+            layer.bindPopup('<b>This is </b>Incomati Basin')
+          },
+          style: {
+            fillColor: 'transparent',
+            fillOpacity: 0.3,
+            color: 'rgb(5,196,188)'
+          }
+        }).addTo(mymap2);
+      }
 
       /*Legend specific*/
       var legend = L.control({
@@ -269,7 +311,7 @@
 
       $.ajax({
         type: "POST",
-        url: 'api/get-guaging-stations.php',
+        url: 'api/get-dams-data.php',
         dataType: "json",
         success: function(response) {
           var type = response.type;
@@ -279,9 +321,18 @@
             var data = response.data;
 
             for (var i = 0; i < data.length; i++) {
+              // Calculate fill color based on dam level percentage
+              var level = parseFloat(data[i].value);
+              var fillColor = "#8d0801"; // Default red
+              if (level >= 90) fillColor = "#7cb518"; // Green for high levels
+              else if (level >= 70) fillColor = "#8cb369"; // Light green
+              else if (level >= 50) fillColor = "#c38e70"; // Orange
+              else if (level >= 30) fillColor = "#bf0603"; // Red
+              else fillColor = "#8d0801"; // Dark red for very low
+
               var station = L.circle([data[i].latitude, data[i].longitude], {
                 radius: 8000,
-                fillColor: "#8d0801",
+                fillColor: fillColor,
                 color: "#000",
                 weight: 1,
                 opacity: 1,
@@ -290,26 +341,31 @@
 
               var popupContent = `<h5 class = "text-primary text-center">${data[i].name}</h5>
                 <div class="container"><table class="table table-hover">
-                <tbody><tr><td> Station Name: </td><td>( ${data[i].code} ) ${data[i].name}</td></tr>
-                <tr><td>Station Code: </td><td>${data[i].code}</td></tr>
+                <tbody><tr><td> Dam Name: </td><td>( ${data[i].code} ) ${data[i].name}</td></tr>
+                <tr><td>Dam Code: </td><td>${data[i].code}</td></tr>
                 <tr><td> Latitude: </td><td>${data[i].latitude}</td></tr>
                 <tr><td> Longitude: </td><td>${data[i].longitude}</td></tr>
-                <tr><td> Level: </td><td>10 m^3/s</td></tr>`;
+                <tr><td> Full Supply Capacity: </td><td>${data[i].fsc} ML</td></tr>
+                <tr><td> Current Level: </td><td>${data[i].value}% (${new Date(data[i].date).toLocaleDateString()})</td></tr></tbody></table></div>`;
               station.bindPopup(popupContent)
 
               rows += `
               <tr>
                 <td>( ${data[i].code} ) ${data[i].name}</td>
-                <td>2023-01-16</td>
-                <td>20 m^/3s</td>
+                <td>${new Date(data[i].date).toLocaleDateString()}</td>
+                <td>${data[i].value}% (${data[i].fsc} ML)</td>
               </tr>`;
             }
             $('#stations').html(rows);
           } else if (type == "failed") {
-            alert('Failed to get data')
-            console.log(text);
+            alert('Failed to get dam data');
+            console.log(response.text || 'Unknown error');
           }
 
+        },
+        error: function(xhr, status, error) {
+          console.error('AJAX Error:', error);
+          alert('Error connecting to server');
         }
       });
 
